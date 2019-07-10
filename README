@@ -1,1 +1,11 @@
 This code is for use with Full Sail University Software Defined DataCenters lab 1.1.1 Jul 2019
+
+Thge Image Resized is a node.js/Javascript function to be used as an Azure function within a Function App.
+It is triggered by entries in a blob container named "images". 
+It writes to a blob container named "thimbnails" It also write data to a queue named facequeue.
+
+It is intended to be the reciever of a client an using Azure storage API.
+
+Upon upload/trigger the code will read the image from the blob, invoke Jimp to resize the image, call the Azure Cognitive services Vision api's analyze method.
+It will then write the resized image to thumbnails, check the results of the analyze call and if there are faces detected, 
+write the analyze results to a queue. This queue will then trigger downstream processing. (Faces api.)
