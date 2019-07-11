@@ -1,6 +1,6 @@
 This code is for use with Full Sail University Software Defined DataCenters lab 1.1.1 Jul 2019
 
-Thge Image Resized is a node.js/Javascript function to be used as an Azure function within a Function App.
+Thge Image Resizer is a node.js/Javascript function to be used as an Azure function within a Function App.
 It is triggered by entries in a blob container named "images". 
 It writes to a blob container named "thimbnails" It also write data to a queue named facequeue.
 
