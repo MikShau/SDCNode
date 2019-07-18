@@ -1,6 +1,7 @@
 const Jimp = require("jimp");
 const axios = require('axios');
 var azure = require('azure-storage');
+const QueueMessageEncoder = azure.QueueMessageEncoder;
 var qtext ;
 var qresp ;
 var imagePath ;
@@ -10,6 +11,7 @@ module.exports = function (context, myBlob) {
     context.log("JavaScript blob trigger function processed blob \n Name:", context.bindingData.name, "\n Blob Size:", myBlob.length, "Bytes");
     function putQueue(mesg) {
        var queueSvc = azure.createQueueService();
+       queueSvc.messageEncoder = new QueueMessageEncoder.TextBase64QueueMessageEncoder();
        queueSvc.createMessage('facequeue', mesg, function(error, results, response){
            if (error) {
                context.log(error);
@@ -46,7 +48,7 @@ module.exports = function (context, myBlob) {
   //  remove these comments to implement storage queue output                      
                         if (response.data.faces.length > 0) {
                             context.log("Calling putQueue") ;
-                            putQueue(JSON.stringify(qresp, null, 2)) ;
+                            putQueue(imagePath) ;
                         }    
                         context.done(null, {
                             id: context.bindingData.name,
