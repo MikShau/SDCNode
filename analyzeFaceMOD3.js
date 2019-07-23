@@ -1,69 +1,57 @@
-const Jimp = require("jimp");
 const axios = require('axios');
 const azure = require('azure-storage');
-const QueueMessageEncoder = azure.QueueMessageEncoder;
-var qtext ;
+
 var qresp ;
-var imagePath ;
+//var COMP_FACE_URL = 'å://westcentralus.api.cognitive.microsoft.com/face/v1.0/detect?returnFaceid=true&returnFaceLandmarks=true&returnFaceAttributes=age,gender,smile,facialHair,glasses,emotion,hair,makeup,occlusion,accessories,blur,exposure,noise' ;
+//var COMP_FACE_PATH = 'detect?returnFaceid=true&returnFaceLandmarks=true&returnFaceAttributes=age,gender,smile,facialHair,glasses,emotion,hair,makeup,occlusion,accessories,blur,exposure,noise' ;
+//var STOR_IMAGE_URL = "https://sdcinststorage.blob.core.windows.net"  ;
+//var COMP_FACE_KEY = '76eba928b8324c45b029a1930c660b47' ;
 
+module.exports =  function (context, myQueueItem) {
+    context.log('JavaScript queue trigger function processed work item', myQueueItem);
 
-module.exports = function (context, myBlob) {
-    context.log("JavaScript blob trigger function processed blob \n Name:", context.bindingData.name, "\n Blob Size:", myBlob.length, "Bytes");
-    function putQueue(mesg) {
-       const queueSvc = azure.createQueueService();
-       queueSvc.messageEncoder = new QueueMessageEncoder.TextBase64QueueMessageEncoder();
-       queueSvc.createMessage('facequeue', mesg, function(error, results, response){
-           if (error) {
-               context.log(error);
-           } else {
-               context.log("queue record written");
-           }
-       }) ; 
-    }
-    Jimp.read(myBlob).then(image => {
-        image
-            .cover(200, 200) 
-            .quality(60)
-            .getBuffer(Jimp.MIME_JPEG, (error, stream) => {
-                if (error) {
-                    context.done(error);
-                } else {
-                    context.log('calling cog svc');
-                    axios.post(process.env.COMP_VISION_URL + '/analyze?visualFeatures=Description,Faces&language=en', myBlob, {
-                        headers: {
-                            'Ocp-Apim-Subscription-Key': process.env.COMP_VISION_KEY,
-                            'Content-Type': 'application/octet-stream'
-                        }
-                    }).then(response => {
-                        qresp = response.data ;
-                        qtext = JSON.stringify(response.data, null, 2)
-                        imagePath = "/images/" + context.bindingData.name ;
-                        qresp["imgPath"] = imagePath ;
-                        context.log(JSON.stringify(qresp, null,2 ));
-                        if (response.data.faces.length > 0) (
-                            context.log("Faces Found: ",response.data.faces.length)
-                            
-                        )
-                        context.bindings.thumbnail = stream;
-  //  remove these comments to implement storage queue output                      
-                        if (response.data.faces.length > 0) {
-                            context.log("Calling putQueue") ;
-                        //    putQueue(JSON.stringify(qresp,null)) ;
-                            putQueue(imagePath) ;
-                        }    
-                        context.done(null, {
-                            id: context.bindingData.name,
-                            imgPath: "/images/" + context.bindingData.name,
-                            thumbnailPath: "/thumbnails/" + context.bindingData.name,
-                            description: response.data.description,
-                            faces: response.data.faces
-                        });
-                    }).catch(err => {
-                        context.log(JSON.stringify(err));
-                        context.done(err);
-                    });                   
-                }
-            });
+    //var bod =  process.env.STOR_IMAGE_URL + myQueueItem ;
+    var surl = { 'url' :  process.env.STOR_IMAGE_URL + myQueueItem  } ;
+    context.log("surl" + JSON.stringify(surl,null, 2)) ;
+
+       function putTable(imageLoc,imageJSON) {
+    	var img = imageLoc.split('/') ;
+    	console.log("In putTable ",img[img.length-1],JSON.stringify(imageJSON,null, 2) );
+		const tabSVC = azure.createTableService(process.env.AZURE_STORAGE_CONNECTION_STRING );
+    	tabSVC.createTableIfNotExists('afResults', function(error, result, response){
+    		if(error){
+    		console.log(error) ;
+    	}
+    	var entGen = azure.TableUtilities.entityGenerator;
+    	var task = {
+    		PartitionKey: entGen.String('results'),
+    		RowKey: entGen.String(img[img.length-1]),
+    		json: entGen.String(JSON.stringify(imageJSON,null, 2)),
+    	};
+    	tabSVC.insertOrReplaceEntity('afResults',task, function (error, result, response) {
+    		if(error){
+    		console.log(error);
+    	    }
+        });
+
     });
-    
+    }
+
+    context.log("Making axios POST");
+    axios.post(process.env.COMP_FACE_URL + process.env.COMP_FACE_PATH , surl , {
+                      headers: {
+                         'Ocp-Apim-Subscription-Key': process.env.COMP_FACE_KEY,
+                         'Content-Type': 'application/json'
+                          }
+                      }).then(response => {
+                          context.log("In Response")
+                          qresp = response.data ;
+                          context.log(JSON.stringify(qresp,null,2)) ;
+                          putTable(myQueueItem,qresp);
+                          context.done();
+                       }).catch(err => {
+                          context.log(err);
+                          context.done(err) ;
+                       });    
+
 };
